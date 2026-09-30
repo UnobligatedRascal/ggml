@@ -407,6 +407,8 @@ void ggml_cuda_op_conv2d(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
         }
         const conv_params padded_params = { pw, ph, OW, OH, KW, KH, ST_X, ST_Y, 0, 0, DL_X, DL_Y, IC, OC, B, total };
         if (use_blas) {
+            const int cc = ggml_cuda_info().devices[ctx.device].cc;
+            const cublasGemmAlgo_t gemm_algo = cc < GGML_CUDA_CC_VOLTA ? CUBLAS_GEMM_DEFAULT : CUBLAS_GEMM_DEFAULT_TENSOR_OP;
             const float    alpha = 1.0f, beta = 0.0f;
             const int      positions = int(OW * OH);
             cublasHandle_t cublas_h  = ctx.cublas_handle();
@@ -414,7 +416,7 @@ void ggml_cuda_op_conv2d(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
                 CUBLAS_CHECK(cublasGemmEx(cublas_h, CUBLAS_OP_N, CUBLAS_OP_N, positions, int(OC), int(IC), &alpha,
                                           x_half.get() + int64_t(n) * IC * positions, CUDA_R_16F, positions, K_D,
                                           CUDA_R_16F, int(IC), &beta, Y_D + int64_t(n) * OC * positions, CUDA_R_32F,
-                                          positions, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+                                          positions, CUBLAS_COMPUTE_32F, gemm_algo));
             }
             return;
         }

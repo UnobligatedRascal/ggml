@@ -70,8 +70,10 @@ static void solve_tri_f32_cublas(ggml_backend_cuda_context & ctx,
     CUBLAS_CHECK(cublasStrsmBatched(ctx.cublas_handle(), CUBLAS_SIDE_RIGHT, CUBLAS_FILL_MODE_UPPER, CUBLAS_OP_N,
                                     CUBLAS_DIAG_NON_UNIT, k, n, &alpha, A_ptrs_dev, n, X_ptrs_dev, k, total_batches));
 
-    // revert to standard mode from common.cuh
-    CUBLAS_CHECK(cublasSetMathMode(ctx.cublas_handle(), CUBLAS_TF32_TENSOR_OP_MATH));
+    // revert to standard mode from common.cuh (TF32 only on Volta+)
+    const int cc = ggml_cuda_info().devices[ctx.device].cc;
+    CUBLAS_CHECK(cublasSetMathMode(ctx.cublas_handle(),
+        cc >= GGML_CUDA_CC_VOLTA ? CUBLAS_TF32_TENSOR_OP_MATH : CUBLAS_DEFAULT_MATH));
 
     GGML_UNUSED_VARS(s12, s13);
 }

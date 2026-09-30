@@ -1218,6 +1218,12 @@ static enum ggml_status ggml_backend_meta_buffer_init_tensor_impl(ggml_backend_m
                     nb[i] = tensor->nb[i] * ne[split_dim]/tensor->ne[split_dim];
                 }
             }
+            // For quantized types split along axis 0, linear stride scaling produces
+            // misaligned strides that fail GGML_ASSERT(size % chunk_size_full == 0).
+            // Use block-aligned row stride instead (from llama_wukong fix 70481fa68).
+            if (split_dim == 0 && ggml_is_quantized(tensor->type)) {
+                nb[1] = ggml_row_size(tensor->type, ne[0]);
+            }
         }
 
         ggml_tensor * t_ij = ggml_new_tensor(simple_ctx, tensor->type, GGML_MAX_DIMS, ne);

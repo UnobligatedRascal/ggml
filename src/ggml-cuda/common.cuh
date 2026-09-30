@@ -1544,7 +1544,10 @@ struct ggml_backend_cuda_context {
         if (cublas_handles[device][curr_stream_no] == nullptr) {
             ggml_cuda_set_device(device);
             CUBLAS_CHECK(cublasCreate(&cublas_handles[device][curr_stream_no]));
-            CUBLAS_CHECK(cublasSetMathMode(cublas_handles[device][curr_stream_no], CUBLAS_TF32_TENSOR_OP_MATH));
+            // TF32 Tensor Op Math requires Volta+ (sm_700+). Kepler needs CUBLAS_DEFAULT_MATH.
+            const int cc = ggml_cuda_info().devices[device].cc;
+            CUBLAS_CHECK(cublasSetMathMode(cublas_handles[device][curr_stream_no],
+                cc >= GGML_CUDA_CC_VOLTA ? CUBLAS_TF32_TENSOR_OP_MATH : CUBLAS_DEFAULT_MATH));
             CUBLAS_CHECK(cublasSetStream(cublas_handles[device][curr_stream_no], stream()));
 #if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && (CUBLAS_VER_MAJOR > 11 || (CUBLAS_VER_MAJOR == 11 && CUBLAS_VER_MINOR >= 2))
             if (cublas_workspace_sizes[device] == 0) {

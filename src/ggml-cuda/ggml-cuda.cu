@@ -1741,6 +1741,7 @@ static void ggml_cuda_mul_mat_i8(
     const float * bias          = dst->src[3] != nullptr ? (const float *)dst->src[3]->data : nullptr;
     ggml_cuda_pool_alloc<int32_t> accum(ctx.pool(), (size_t)n * rows_padded);
 
+    const int cc = ggml_cuda_info().devices[ctx.device].cc;
     const int32_t alpha = 1;
     const int32_t beta  = 0;
     CUBLAS_CHECK(cublasSetStream(ctx.cublas_handle(), stream));
@@ -1749,7 +1750,8 @@ static void ggml_cuda_mul_mat_i8(
         &alpha, src0->data, CUDA_R_8I, (int)k,
                 qdata_d, CUDA_R_8I, (int)qstride,
         &beta,  accum.get(), CUDA_R_32I, (int)n,
-        CUBLAS_COMPUTE_32I, CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+        CUBLAS_COMPUTE_32I,
+        cc < GGML_CUDA_CC_VOLTA ? CUBLAS_GEMM_DEFAULT : CUBLAS_GEMM_DEFAULT_TENSOR_OP));
 
     const dim3 dequant_grid((n + 255) / 256, rows, 1);
     dequantize_i32_rows_cuda<<<dequant_grid, 256, 0, stream>>>(
@@ -2026,6 +2028,8 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
 
     GGML_TENSOR_BINARY_OP_LOCALS
 
+    const int cc = ggml_cuda_info().devices[ctx.device].cc;
+    const cublasGemmAlgo_t gemm_algo = cc < GGML_CUDA_CC_VOLTA ? CUBLAS_GEMM_DEFAULT : CUBLAS_GEMM_DEFAULT_TENSOR_OP;
     const int64_t ne_dst = ggml_nelements(dst);
     cudaStream_t main_stream = ctx.stream();
     cublasHandle_t cublas_h = ctx.cublas_handle();
@@ -2164,7 +2168,7 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
                            src1_ptr, cu_data_type_b, s11,
                     beta,   dst_ptr, cu_data_type,   ne0,
                     cu_compute_type,
-                    CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+                    gemm_algo));
     } else if (r2 == 1 && r3 == 1 && is_src0_cont_2 && is_src1_cont_2) {
         // with a [0, 2, 1, 3] perm. and ne02==1 the matrix strides need to be determined from dim 3:
         const int64_t sma = ne02 == 1 ? s03 : s02;
@@ -2180,7 +2184,7 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
                 beta,   dst_ptr, cu_data_type,   ne0, ne1*ne0, // strideC
                 ne12*ne13,
                 cu_compute_type,
-                CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+                gemm_algo));
     } else {
         // use cublasGemmBatchedEx
         const int64_t ne23 = ne12*ne13;
@@ -2218,7 +2222,7 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
                 beta,  (      void **) (ptrs_dst.get() + 0*ne23), cu_data_type,   ne0,
                 ne23,
                 cu_compute_type,
-                CUBLAS_GEMM_DEFAULT_TENSOR_OP));
+                gemm_algo));
     }
 
     // Convert output back to F32 if needed

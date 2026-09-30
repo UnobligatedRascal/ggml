@@ -28,6 +28,8 @@ if (CUDAToolkit_FOUND)
             set(CMAKE_CUDA_ARCHITECTURES "native")
         else()
             if (CUDAToolkit_VERSION VERSION_LESS "13")
+                # Kepler sm_35/sm_37 (GK210/Tesla K80) support for CUDA < 13
+                list(APPEND CMAKE_CUDA_ARCHITECTURES 35-virtual 37-virtual)
                 list(APPEND CMAKE_CUDA_ARCHITECTURES 50-virtual 61-virtual 70-virtual)
             endif ()
 
