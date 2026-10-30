@@ -2066,10 +2066,18 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
             const auto convert_func = traits::convert(src0->type);
             GGML_ASSERT(convert_func != nullptr);
             convert_func(src0->data, src0_alloc.get(), ggml_nelements(src0), main_stream);
-            const size_t src0_bs = ggml_blck_size(src0->type);
-            s01 *= src0_bs;
-            s02 *= src0_bs;
-            s03 *= src0_bs;
+            // Kepler sm_37: after quantized->F32 conversion, data is contiguous in output type.
+            // Strides must be dimension-based, NOT block-size scaled (llama_lazarus fix 992315e0e).
+            if constexpr (std::is_same_v<float, cuda_t>) {
+                s01 = ne00;
+                s02 = ne01*s01;
+                s03 = ne02*s02;
+            } else {
+                const size_t src0_bs = ggml_blck_size(src0->type);
+                s01 *= src0_bs;
+                s02 *= src0_bs;
+                s03 *= src0_bs;
+            }
         } else {
             const auto convert_func = traits::convert_nc(src0->type);
             GGML_ASSERT(convert_func != nullptr);
@@ -2091,10 +2099,18 @@ static void ggml_cuda_mul_mat_cublas_impl(ggml_backend_cuda_context & ctx, const
             const auto convert_func = traits::convert(src1->type);
             GGML_ASSERT(convert_func != nullptr);
             convert_func(src1->data, src1_alloc.get(), ggml_nelements(src1), main_stream);
-            const size_t src1_bs = ggml_blck_size(src1->type);
-            s11 *= src1_bs;
-            s12 *= src1_bs;
-            s13 *= src1_bs;
+            // Kepler sm_37: after quantized->F32 conversion, data is contiguous in output type.
+            // Strides must be dimension-based, NOT block-size scaled (llama_lazarus fix 992315e0e).
+            if constexpr (std::is_same_v<float, cuda_t>) {
+                s11 = ne10;
+                s12 = ne11*s11;
+                s13 = ne12*s12;
+            } else {
+                const size_t src1_bs = ggml_blck_size(src1->type);
+                s11 *= src1_bs;
+                s12 *= src1_bs;
+                s13 *= src1_bs;
+            }
         } else {
             const auto convert_func = traits::convert_nc(src1->type);
             GGML_ASSERT(convert_func != nullptr);
